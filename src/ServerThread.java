@@ -1,24 +1,25 @@
-import java.io.*;
-import java.net.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
 import java.util.Scanner;
 
-public class client {
+public class ServerThread extends Thread {
 
-    private static String host = "192.168.1.6";
-    private static int port = 5050;
+    Socket socket;
+    ServerThread(Socket socket){
+        this.socket = socket;
+    }
 
-    public static void main(String[] args) {
+    public void run(){
+
+        final Scanner scanner = new Scanner(System.in);
 
         try{
 
-            Socket s = new Socket(host, port);
-            final Scanner scanner = new Scanner(System.in);
-
-            DataInputStream receiving = new DataInputStream(s.getInputStream());
-            //BufferedReader receiving = new BufferedReader(new InputStreamReader(s.getInputStream()));
-            DataOutputStream sending = new DataOutputStream(s.getOutputStream());
-            //PrintWriter sending = new PrintWriter(s.getOutputStream());
-
+            DataInputStream receiving = new DataInputStream(socket.getInputStream());
+            //BufferedReader receiving = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            DataOutputStream sending = new DataOutputStream(socket.getOutputStream());
+            //PrintWriter sending = new PrintWriter(socket.getOutputStream());
 
             Thread send = new Thread(new Runnable() {
 
@@ -34,7 +35,6 @@ public class client {
                         try {
                             sending.writeUTF(msgout);
                             sending.flush();
-
                         } catch (Exception e) {}
                     }
                 }
@@ -61,9 +61,6 @@ public class client {
             }));
             receive.start();
 
-            //s.close();
         }catch(Exception e){}
-
-
     }
 }
