@@ -1,5 +1,9 @@
-import java.io.*;
-import java.net.*;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
 import java.util.Scanner;
 
 public class client {
@@ -7,35 +11,47 @@ public class client {
     private static String host = "192.168.1.6";
     private static int port = 5050;
 
+    static final String IV = "AAAAAAAAAAAAAAAA";
+    static final String encryptionKey = "0123456789abcdef";
+
     public static void main(String[] args) {
 
-        try{
 
-            Socket s = new Socket(host, port);
-            final Scanner scanner = new Scanner(System.in);
+        final Scanner scanner = new Scanner(System.in);
 
-            DataInputStream receiving = new DataInputStream(s.getInputStream());
-            //BufferedReader receiving = new BufferedReader(new InputStreamReader(s.getInputStream()));
-            DataOutputStream sending = new DataOutputStream(s.getOutputStream());
-            //PrintWriter sending = new PrintWriter(s.getOutputStream());
+        try {
 
+            Socket socket = new Socket(host, port);
+
+            DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
+            DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
 
             Thread send = new Thread(new Runnable() {
 
                 String msgout = " ";
+                boolean conn = true;
 
                 @Override
                 public void run() {
 
-                    while (msgout != null){
-
-                        msgout = scanner.nextLine();
+                    while (conn){
 
                         try {
-                            sending.writeUTF(msgout);
-                            sending.flush();
+                            msgout = scanner.nextLine();
+                            byte[] cipher = encrypt(msgout, encryptionKey);
 
-                        } catch (Exception e) {}
+                            dataOutputStream.writeInt(cipher.length);
+                            dataOutputStream.write(cipher);
+                            dataOutputStream.flush();
+
+                        } catch (Exception e) {
+                            System.out.println("error sending");
+                            try {
+                                socket.close();
+                            } catch (Exception E){
+                                System.out.println("error closing socket connection");
+                            }
+                        }
                     }
                 }
             });
@@ -43,27 +59,58 @@ public class client {
 
             Thread receive = new Thread((new Runnable() {
 
-                String msgin = " ";
-
                 @Override
                 public void run() {
 
-                    while (msgin != null){
+                    boolean conn = true;
+
+                    while (conn){
 
                         try {
-                            msgin = receiving.readUTF();
+                            int len = dataInputStream.readInt();
+                            byte[] cipher = new byte[len];
 
-                        } catch (Exception e) {}
+                            if (len > 0) {
+                                dataInputStream.readFully(cipher, 0, len);
+                            }
 
-                        System.out.println("Received: " + msgin);
+                            System.out.println("Decrypted Info: " + decrypt(cipher, encryptionKey));
+
+                        } catch (Exception e) {
+                            System.out.println("error receiving");
+                            conn = false;
+                            try {
+                                socket.close();
+                            } catch (Exception E){
+                                System.out.println("error closing socket connection");
+                            }
+                        }
                     }
                 }
             }));
             receive.start();
 
-            //s.close();
-        }catch(Exception e){}
 
+
+        } catch (Exception e) {
+        }
 
     }
+
+    public static byte[] encrypt (String plainText, String encryptionKey) throws Exception {
+
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding", "SunJCE");
+        SecretKeySpec secretKeySpec = new SecretKeySpec(encryptionKey.getBytes("UTF-8"), "AES");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, new IvParameterSpec(IV.getBytes("UTF-8")));
+        return cipher.doFinal(plainText.getBytes("UTF-8"));
+    }
+
+    public static String decrypt(byte[] cipherText, String encryptionKey) throws Exception {
+
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding", "SunJCE");
+        SecretKeySpec secretKeySpec = new SecretKeySpec(encryptionKey.getBytes("UTF-8"), "AES");
+        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new IvParameterSpec(IV.getBytes("UTF-8")));
+        return new String(cipher.doFinal(cipherText), "UTF-8");
+    }
+
 }
